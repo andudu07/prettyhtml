@@ -1,0 +1,57 @@
+#!/bin/bash
+
+if [[ $# -ne 1 ]]; then
+	echo "Utilizare: $0 <fisier html>" 
+	exit 1
+fi
+
+infile="$1"
+
+if [ ! -f "$infile" ]; then
+	echo "Eroare: fisierul '$infile' nu exista."
+	exit 1
+fi	
+
+
+text=$(cat "$infile")
+
+# folosesc array-ul ca si un stack
+# stack[${#stack[*]}]="<body>" devine push
+# unset stack[${#stack[@]}-1] devine pop
+# echo "${#stack[@]}" -- inaltimea stivei
+
+tabdepth=0
+
+stack=( )
+
+while IFS=: read start label; do
+	end=$(( start + ${#label} - 1))
+	if [ "$label" == "<!doctype html>" ] || [ "$label" == "<!DOCTYPE html>" ]; then 
+		echo "$label"
+	elif [ "$label" == "<html>" ] || [ "$label" == "</html>" ]; then
+		echo "$label"
+	else
+		if [[ $label =~ ^\<[[:space<:]]*/[[:space:]]*([[:alnum:]_:-]+) ]]; then
+		
+			stripped="${BASH_REMATCH[1]}"
+			if [[ ${arr[-1]} != $stripped ]]; then
+				echo "Eroare: eticheta ${arr[-1]} nu corespunde cu $stripped."
+				exit 1	
+			else
+				printf '%*s%s\n' "$(((tabdepth-1)*2))" "" "$label"
+				
+				unset stack[${#stack[@]}-1]
+			fi
+		elif [[ "$label" == '<!--'* ]]; then
+			printf '%*s%s\n' "$(((tabdepth)*2))" "" "$label"
+		else
+			printf '%*s%s\n' "$(((tabdepth)*2))" "" "$label"
+			label="${label:1}"
+			label=$(echo $label | awk '{print $1}')	
+			stack[${#stack[*]}]="$label"
+			$tabdepth = $tabdepth + 1
+		fi
+	fi
+done < <(printf '%s' "$text" | grep -boE '<[^>]*>') 
+
+echo "Stiva: ${stack[@]}"
