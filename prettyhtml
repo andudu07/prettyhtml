@@ -24,34 +24,57 @@ tabdepth=0
 
 stack=( )
 
+re='^<[[:space:]]*/[[:space:]]*([[:alnum:]_:-]+)'
+
+last_end=-1
+
 while IFS=: read start label; do
 	end=$(( start + ${#label} - 1))
 	if [ "$label" == "<!doctype html>" ] || [ "$label" == "<!DOCTYPE html>" ]; then 
-		echo "$label"
+		printf '%s' "$label"	
+		last_end=$((end+1))	
 	elif [ "$label" == "<html>" ] || [ "$label" == "</html>" ]; then
-		echo "$label"
+		len=$(( start - last_end ))
+		printf '%*s%s\n' "$(((tabdepth)*2))" "" "${text:last_end:len}"
+		last_end=$((end+1))	
+		printf '%s' "$label"	
 	else
-		if [[ $label =~ ^\<[[:space<:]]*/[[:space:]]*([[:alnum:]_:-]+) ]]; then
-		
+		if [[ $label =~ $re ]]; then
+			len=$(( start - last_end ))
+			printf '%*s%s\n' "$(((tabdepth)*2))" "" "${text:last_end:len}"
+			last_end=$((end+1))	
+			
 			stripped="${BASH_REMATCH[1]}"
-			if [[ ${arr[-1]} != $stripped ]]; then
-				echo "Eroare: eticheta ${arr[-1]} nu corespunde cu $stripped."
+			if [[ ${stack[-1]} != $stripped ]]; then
+				echo "Eroare: eticheta ${stack[-1]} nu corespunde cu $stripped."
 				exit 1	
 			else
 				printf '%*s%s\n' "$(((tabdepth-1)*2))" "" "$label"
-				
 				unset stack[${#stack[@]}-1]
+				((tabdepth--))	
 			fi
 		elif [[ "$label" == '<!--'* ]]; then
+			len=$(( start - last_end ))
+			printf '%*s%s\n' "$(((tabdepth)*2))" "" "${text:last_end:len}"
+			last_end=$((end+1))	
 			printf '%*s%s\n' "$(((tabdepth)*2))" "" "$label"
 		else
+			len=$(( start - last_end ))
+			printf '%*s%s\n' "$(((tabdepth)*2))" "" "${text:last_end:len}"
+			last_end=$((end+1))	
 			printf '%*s%s\n' "$(((tabdepth)*2))" "" "$label"
 			label="${label:1}"
 			label=$(echo $label | awk '{print $1}')	
-			stack[${#stack[*]}]="$label"
-			$tabdepth = $tabdepth + 1
+			label=${label%>}
+			case "$label" in 
+				area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)
+					;;
+				*)
+					stack[${#stack[*]}]="$label"
+					((tabdepth++))
+#					echo "Stiva: ${stack[@]}"
+			esac
 		fi
 	fi
 done < <(printf '%s' "$text" | grep -boE '<[^>]*>') 
 
-echo "Stiva: ${stack[@]}"
